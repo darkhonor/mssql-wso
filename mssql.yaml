@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mssql-wso-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: wso
+    tier: db
+  ports:
+  - port: 1433
+    protocol: TCP
+    targetPort: 1433
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mssql-wso
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: wso
+      tier: db
+  template:
+    metadata:
+      labels:
+        app: wso
+        tier: db
+    spec:
+      containers:
+      - name: mssql-wso
+        image: mcr.microsoft.com/mssql/server:2017-CU21-ubuntu-16.04
+        resources:
+        # These values are for up to 1,000 users per Workspace ONE Access 20.10 docs
+          requests:
+            memory: "4Gi"
+            cpu: "2"
+          limits:
+            memory: "8Gi"
+            cpu: "4"
+        ports:
+        - containerPort: 1433
+        env:
+        - name: ACCEPT_EULA
+          value: "Y"
+        - name: SA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mssql-wso
+              key: SA_PASSWORD
+        - name: MSSQL_PID
+          value: "Standard"
+        - name: MSSQL_MEMORY_LIMIT_MB
+          value: 8G
+        - name: MSSQL_DATA_DIR
+          value: /mssql-data
+        - name: MSSQL_LOG_DIR
+          value: /mssql-log
+        - name: MSSQL_TCP_PORT
+          value: "1433"
+        - name: MSSQL_COLLATION
+          value: "SQL_Latin1_General_CP1_CI_AS"
+        - name: MSSQL_ENABLE_HADR
+          value: "0"
+        - name: MSSQL_AGENT_ENABLED
+          value: "true"
+        volumeMounts:
+          - mountPath: /var/opt/mssql
+            name: mssql-instance
+          - mountPath: /mssql-data
+            name: mssql-data
+          - mountPath: /mssql-log
+            name: mssql-logs
+      volumes:
+        - name: mssql-instance
+          persistentVolumeClaim:
+            claimName: mssql-instance-pvc
+        - name: mssql-data
+          persistentVolumeClaim:
+            claimName: mssql-data-pvc
+        - name: mssql-logs
+          persistentVolumeClaim:
+            claimName: mssql-logs-pvc
